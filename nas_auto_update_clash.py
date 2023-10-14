@@ -210,6 +210,8 @@ if __name__ == '__main__':
 
     updater = Updater(controllerRoot, managedConfigUrl, clashConfigPath, containerConfigPath)
 
+    logging.info('Sucessfully created updater.')
+
     schedule.every(proxyCheckInterval).seconds.do(checkProxy, updater)
     schedule.every(configUpdateInterval).seconds.do(updateConfig, updater)
 

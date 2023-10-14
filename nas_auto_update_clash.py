@@ -135,9 +135,8 @@ class Updater:
 
     def selectBest(self):
         logging.debug('Updater.selectBest()')
-        # proxyLatencies = self.testLatency()
-        # bestProxy = min(proxyLatencies, key=lambda x: x[1])[0]
-        bestProxy = '中国-香港 IEPL Equinix HK2 E 06'
+        proxyLatencies = self.testLatency()
+        bestProxy = min(proxyLatencies, key=lambda x: x[1])[0]
         logging.debug('Preapare to change GLOBAL to the best tested proxy: [%s].', bestProxy)
         # since the test-passed proxies have access to all target url, force to use clash GLOBAL.
         response = requests.put('/'.join([self.controllerRoot, 'proxies', 'GLOBAL']), json.dumps({

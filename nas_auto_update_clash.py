@@ -186,6 +186,8 @@ def catch_exceptions(cancel_on_failure=False):
 def updateConfig(updater: Updater):
     try:
         updater.updateConfig()
+        # After update config, do a proxy selec
+        updater.selectBest()
     except:
         logging.error('Update config failed. Skip for this time.')
         raise

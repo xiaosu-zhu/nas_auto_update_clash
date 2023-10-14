@@ -31,7 +31,7 @@ class Updater:
     managedConfigUrl: str
 
     def __init__(self, controllerRoot, managedConfigUrl, clashContainerConfigPath, thisContainerConfigPath):
-        logging.debug('Updater.__init__()')
+        logging.debug('Start Updater.__init__()')
         response = requests.get(controllerRoot)
         if not response.ok:
             raise ConnectionError('The give clash controller root return wrong status. GET %s: <%s> (%s)' % (controllerRoot, response.status_code, response.reason))
@@ -45,20 +45,22 @@ class Updater:
         self.managedConfigUrl = managedConfigUrl
 
         self.downloadConfig()
+        logging.debug('*DONE* Updater.__init__()')
 
 
     def downloadConfig(self):
-        logging.debug('Updater.downloadConfig()')
+        logging.debug('Start Updater.downloadConfig()')
         newConfig = requests.get(self.managedConfigUrl, headers=DEFAULT_HEADER).text
         try:
             yaml.safe_load(newConfig)
         except:
             logging.error("The given managed config url returns an invalid yaml. (%s)" % self.managedConfigUrl)
             raise
+        logging.debug('*DONE* Updater.downloadConfig()')
         return newConfig
 
     def updateConfig(self):
-        logging.debug('Updater.updateConfig()')
+        logging.debug('Start Updater.updateConfig()')
         # read the #!MANAGED-CONFIG shebang in config from `thisContainerConfigPath`
         with open(self.thisContainerConfigPath, "r") as fp:
             content = fp.readlines()
@@ -73,19 +75,21 @@ class Updater:
         }, ensure_ascii=False).encode('utf-8'), headers=DEFAULT_HEADER | {'Content-Type': 'application/json'})
         if response.ok:
             logging.info('Update config at %s.', datetime.datetime.now())
+            logging.debug('*DONE* Updater.updateConfig()')
             return
         raise ConnectionError('Update config via RESTful api failed. url: %s, status: <%s> (%s).' % ('/'.join([self.controllerRoot, 'configs']), response.status_code, response.reason))
 
     def getAllProxies(self) -> dict[str, Any]:
-        logging.debug('Updater.getAllProxies()')
+        logging.debug('Start Updater.getAllProxies()')
         response = requests.get('/'.join([self.controllerRoot, 'proxies']), headers=DEFAULT_HEADER)
         if not response.ok:
             raise ConnectionError('Get proxies from %s failed. status: <%s> (%s).' % ('/'.join([self.controllerRoot, 'proxies']), response.status_code, response.reason))
         proxies = response.json()
+        logging.debug('*DONE* Updater.getAllProxies()')
         return {name: detail for name, detail in proxies['proxies'].items() if detail['type'] == 'Shadowsocks'}
 
     def testLatency(self) -> list[tuple[str, int]]:
-        logging.debug('Updater.testLatency()')
+        logging.debug('Start Updater.testLatency()')
         proxies = self.getAllProxies()
 
         def singleDelay(proxyName) -> tuple[str, int] | tuple[str, None]:
@@ -117,10 +121,11 @@ class Updater:
             raise RuntimeError("Run joblib to query latencies meet error.")
 
         results = [(x[0], x[1]) for x in results if x[1] is not None]
+        logging.debug('*DONE* Updater.testLatency()')
         return results
 
     def changeMode(self, mode):
-        logging.debug('Updater.changeMode()')
+        logging.debug('Start Updater.changeMode()')
         if mode not in {'Global', 'Rule', 'Direct'}:
             raise AttributeError(mode)
 
@@ -130,11 +135,12 @@ class Updater:
         response = requests.get('/'.join([self.controllerRoot, 'configs']), headers=DEFAULT_HEADER)
         if response.ok and response.json()['mode'].lower() == mode.lower():
             logging.debug('Change mode to %s ok.', mode)
+            logging.debug('*DONE* Updater.changeMode()')
             return
         raise ConnectionError('Change mode to %s failed. Current mode: %s', mode, response.json()['mode'])
 
     def selectBest(self):
-        logging.debug('Updater.selectBest()')
+        logging.debug('Start Updater.selectBest()')
         proxyLatencies = self.testLatency()
         bestProxy = min(proxyLatencies, key=lambda x: x[1])[0]
         logging.debug('Preapare to change GLOBAL to the best tested proxy: [%s].', bestProxy)
@@ -146,6 +152,7 @@ class Updater:
             logging.debug('Changed GLOBAL to the best tested proxy: [%s].', bestProxy)
             # make sure clash have been in the mode GLOBAL
             self.changeMode('Global')
+            logging.debug('*DONE* Updater.selectBest()')
             return
         logging.debug('Select proxy failed. url: %s', response.url)
         raise ConnectionError('Select proxy [%s] via RESTful API error, <%s> (%s)' % (bestProxy, response.status_code, response.reason))
@@ -155,7 +162,7 @@ def tryGetEnvVar(name, default=None, strict=False):
     var = os.environ.get(name, default)
     if strict and var is None:
         raise EnvironmentError('Get ENV variable `%s` return None.' % name)
-    logging.debug('ENV Var `name="%s"`' % var)
+    logging.debug('ENV Var `%s="%s"`' % (name, var))
     return var
 
 

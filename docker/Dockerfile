@@ -1,6 +1,6 @@
 FROM continuumio/miniconda3:23.5.2-0
 
-RUN pip config seg global.index-url https://mirrors.aliyun.com/pypi/simple
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
 
 SHELL ["/bin/bash", "-c"]
 
@@ -19,7 +19,7 @@ custom_channels: \n\
   pytorch: http://mirrors.aliyun.com/anaconda/cloud \n\
   simpletk: http://mirrors.aliyun.com/anaconda/cloud '  > ~/.condarc
 
-RUN conda install requests joblib schedule -c conda-forge
+RUN conda install requests joblib schedule pyyaml -c conda-forge
 
 
 VOLUME ["/root/config"]
@@ -32,9 +32,10 @@ ENV CLASH_CONTROLLER_ROOT="http://127.0.0.1:9090"
 ENV CLASH_CONFIG_PATH="/root/.config/clash/config.yaml"
 ENV SELF_CONFIG_PATH="/root/config/config.yaml"
 ENV MANAGED_CONFIG_URL="http://127.0.0.1"
+ENV VERBOSE="0"
 # 8 hours
 ENV PROXY_CHECK_INTERVAL="28800"
 # 48 hours
 ENV CONFIG_UPDATE_INTERVAL="172800"
 
-ENTRYPOINT ["python", "nas_auto_update_clash.py"]
+ENTRYPOINT ["python", "nas_auto_update_clash/nas_auto_update_clash.py"]

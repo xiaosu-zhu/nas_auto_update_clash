@@ -189,7 +189,7 @@ def checkProxy(updater: Updater):
         raise
 
 if __name__ == '__main__':
-    level = logging.INFO if os.environ.get('VERBOSE') is None else logging.DEBUG
+    level = logging.INFO if int(os.environ.get('VERBOSE', '0')) < 1 else logging.DEBUG
 
     logging.basicConfig(level=level, format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', stream=sys.stdout, filemode='w')
 

@@ -24,9 +24,6 @@ RUN conda install requests joblib schedule pyyaml -c conda-forge
 
 VOLUME ["/root/config"]
 
-WORKDIR /root
-
-RUN git clone https://github.com/xiaosu-zhu/nas_auto_update_clash.git
 
 ENV CLASH_CONTROLLER_ROOT="http://127.0.0.1:9090"
 ENV CLASH_CONFIG_PATH="/root/.config/clash/config.yaml"
@@ -37,5 +34,10 @@ ENV VERBOSE="0"
 ENV PROXY_CHECK_INTERVAL="28800"
 # 48 hours
 ENV CONFIG_UPDATE_INTERVAL="172800"
+
+
+WORKDIR /root
+
+RUN git clone https://github.com/xiaosu-zhu/nas_auto_update_clash.git
 
 ENTRYPOINT ["python", "nas_auto_update_clash/nas_auto_update_clash.py"]

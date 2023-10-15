@@ -183,18 +183,20 @@ def catch_exceptions(cancel_on_failure=False):
     return catch_exceptions_decorator
 
 
-def updateConfig(updater: Updater):
+def updateConfig(updater: Updater, interval: int):
     try:
         updater.updateConfig()
         # After update config, do a proxy selec
         updater.selectBest()
+        logging.info('Update config complete. Next scheduled task starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=interval))
     except:
         logging.error('Update config failed. Skip for this time.')
         raise
 
-def checkProxy(updater: Updater):
+def checkProxy(updater: Updater, interval: int):
     try:
         updater.selectBest()
+        logging.info('Select best proxy complete. Next scheduled task starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=interval))
     except:
         logging.error('Select best proxy failed. Skip for this time.')
         raise
@@ -216,8 +218,10 @@ if __name__ == '__main__':
 
     logging.info('Sucessfully created updater.')
 
-    schedule.every(proxyCheckInterval).seconds.do(checkProxy, updater)
-    schedule.every(configUpdateInterval).seconds.do(updateConfig, updater)
+    logging.info('Next scheduled task for config update starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=configUpdateInterval))
+    logging.info('Next scheduled task for proxy select starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=proxyCheckInterval))
+    schedule.every(proxyCheckInterval).seconds.do(checkProxy, updater, proxyCheckInterval)
+    schedule.every(configUpdateInterval).seconds.do(updateConfig, updater, configUpdateInterval)
 
     while True:
         schedule.run_pending()

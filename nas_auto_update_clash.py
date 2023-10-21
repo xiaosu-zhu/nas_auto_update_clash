@@ -61,16 +61,17 @@ class Updater:
         logging.debug('*DONE* Updater.downloadConfig()')
         return newConfig
 
+    def modifyConfig(self, configStr: str):
+        # replace all 0.0.0.0 to 127.0.0.1
+        return configStr.replace('0.0.0.0', '127.0.0.1')
+
     def updateConfig(self):
         logging.debug('Start Updater.updateConfig()')
-        # read the #!MANAGED-CONFIG shebang in config from `thisContainerConfigPath`
-        with open(self.thisContainerConfigPath, "r") as fp:
-            content = fp.readlines()
 
 
         shutil.copy(self.thisContainerConfigPath, pathlib.Path(self.thisContainerConfigPath).parent / "backup_config.yaml")
         with open(self.thisContainerConfigPath, "w") as fp:
-            fp.write(self.downloadConfig())
+            fp.write(self.modifyConfig(self.downloadConfig()))
 
         response = requests.put('/'.join([self.controllerRoot, 'configs']), json.dumps({
             'path': self.clashContainerConfigPath

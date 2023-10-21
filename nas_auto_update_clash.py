@@ -63,7 +63,7 @@ class Updater:
 
     def modifyConfig(self, configStr: str):
         # replace all 0.0.0.0 to 127.0.0.1
-        return configStr.replace('0.0.0.0', '127.0.0.1')
+        return configStr.replace('\'0.0.0.0', '\'127.0.0.1')
 
     def updateConfig(self):
         logging.debug('Start Updater.updateConfig()')

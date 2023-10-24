@@ -19,7 +19,7 @@ custom_channels: \n\
   pytorch: http://mirrors.aliyun.com/anaconda/cloud \n\
   simpletk: http://mirrors.aliyun.com/anaconda/cloud '  > ~/.condarc
 
-RUN conda install requests joblib schedule pyyaml -c conda-forge
+RUN conda install requests joblib schedule pyyaml rocketry fastapi uvicorn-standard -c conda-forge
 
 
 VOLUME ["/root/config"]
@@ -30,14 +30,11 @@ ENV CLASH_CONFIG_PATH="/root/.config/clash/config.yaml"
 ENV SELF_CONFIG_PATH="/root/config/config.yaml"
 ENV MANAGED_CONFIG_URL="http://127.0.0.1"
 ENV VERBOSE="0"
-# 8 hours
-ENV PROXY_CHECK_INTERVAL="28800"
-# 48 hours
-ENV CONFIG_UPDATE_INTERVAL="172800"
+ENV CLASH_SECRET="clash_secret"
 
 
 WORKDIR /root
 
 RUN git clone https://github.com/xiaosu-zhu/nas_auto_update_clash.git
 
-ENTRYPOINT ["python", "nas_auto_update_clash/nas_auto_update_clash.py"]
+ENTRYPOINT ["python", "nas_auto_update_clash/nas_guardian.py"]

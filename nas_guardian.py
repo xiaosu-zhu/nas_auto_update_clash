@@ -15,6 +15,32 @@ import sys
 import time
 import schedule
 import functools
+import fastapi
+import asyncio
+import uvicorn
+from rocketry import Rocketry
+
+sched_logger = logging.getLogger("rocketry.scheduler")
+sched_logger.addHandler(logging.StreamHandler(sys.stdout))
+
+# Create Rocketry app
+app_rocketry = Rocketry(execution="async", config={
+    'silence_task_prerun': True,
+    'silence_task_logging': True,
+    'silence_cond_check': True
+})
+app_fastapi = fastapi.FastAPI()
+
+
+class Server(uvicorn.Server):
+    """Customized uvicorn.Server
+
+    Uvicorn server overrides signals and we need to include
+    Rocketry to the signals."""
+    def handle_exit(self, sig: int, frame) -> None:
+        app_rocketry.session.shut_down()
+        return super().handle_exit(sig, frame)
+
 
 
 LATENCY_TEST_TOLERANCE = 3
@@ -32,7 +58,7 @@ class Updater:
     thisContainerConfigPath: str
     managedConfigUrl: str
 
-    def __init__(self, controllerRoot, managedConfigUrl, clashContainerConfigPath, thisContainerConfigPath):
+    def __init__(self, controllerRoot, clashSecret, managedConfigUrl, clashContainerConfigPath, thisContainerConfigPath):
         logging.debug('Start Updater.__init__()')
         response = requests.get(controllerRoot)
         if not response.ok:
@@ -45,6 +71,9 @@ class Updater:
         self.clashContainerConfigPath = clashContainerConfigPath
         self.thisContainerConfigPath = thisContainerConfigPath
         self.managedConfigUrl = managedConfigUrl
+        self.clashSecret = clashSecret
+
+        self.clashHeader = DEFAULT_HEADER | { 'Authorization': f'Bearer {self.clashSecret}' }
 
         self.downloadConfig()
         logging.debug('*DONE* Updater.__init__()')
@@ -61,9 +90,11 @@ class Updater:
         logging.debug('*DONE* Updater.downloadConfig()')
         return newConfig
 
-    def modifyConfig(self, configStr: str):
-        # replace all 0.0.0.0 to 127.0.0.1
-        return configStr.replace('\'0.0.0.0', '\'127.0.0.1')
+    def modifyConfig(self, configStr: str) -> str:
+        config = yaml.safe_load(configStr)
+        config['external-controller'] = '127.0.0.1:9090'
+        config['secret'] = self.clashSecret
+        return yaml.safe_dump(config)
 
     def updateConfig(self):
         logging.debug('Start Updater.updateConfig()')
@@ -73,9 +104,9 @@ class Updater:
         with open(self.thisContainerConfigPath, "w") as fp:
             fp.write(self.modifyConfig(self.downloadConfig()))
 
-        response = requests.put('/'.join([self.controllerRoot, 'configs']), json.dumps({
+        response = requests.put('/'.join([self.controllerRoot, 'configs']) + '?force=true', json.dumps({
             'path': self.clashContainerConfigPath
-        }, ensure_ascii=False).encode('utf-8'), headers=DEFAULT_HEADER | {'Content-Type': 'application/json'})
+        }, ensure_ascii=False).encode('utf-8'), headers=self.clashHeader | {'Content-Type': 'application/json'})
         if response.ok:
             logging.info('Update config at %s.', datetime.datetime.now())
             logging.debug('*DONE* Updater.updateConfig()')
@@ -84,7 +115,7 @@ class Updater:
 
     def getAllProxies(self) -> dict[str, Any]:
         logging.debug('Start Updater.getAllProxies()')
-        response = requests.get('/'.join([self.controllerRoot, 'proxies']), headers=DEFAULT_HEADER)
+        response = requests.get('/'.join([self.controllerRoot, 'proxies']), headers=self.clashHeader)
         if not response.ok:
             raise ConnectionError('Get proxies from %s failed. status: <%s> (%s).' % ('/'.join([self.controllerRoot, 'proxies']), response.status_code, response.reason))
         proxies = response.json()
@@ -105,7 +136,7 @@ class Updater:
                         {
                             'timeout': 2000,
                             'url': url
-                        }, headers=DEFAULT_HEADER)
+                        }, headers=self.clashHeader)
                     if response.ok:
                         totalLatency += response.json()['delay']
                         testPass = True
@@ -134,8 +165,8 @@ class Updater:
 
         response = requests.patch('/'.join([self.controllerRoot, 'configs']), json.dumps({
             'mode': mode
-        }, ensure_ascii=False).encode('utf8'), headers=DEFAULT_HEADER | {'Content-Type': 'application/json'})
-        response = requests.get('/'.join([self.controllerRoot, 'configs']), headers=DEFAULT_HEADER)
+        }, ensure_ascii=False).encode('utf8'), headers=self.clashHeader | {'Content-Type': 'application/json'})
+        response = requests.get('/'.join([self.controllerRoot, 'configs']), headers=self.clashHeader)
         if response.ok and response.json()['mode'].lower() == mode.lower():
             logging.debug('Change mode to %s ok.', mode)
             logging.debug('*DONE* Updater.changeMode()')
@@ -150,7 +181,7 @@ class Updater:
         # since the test-passed proxies have access to all target url, force to use clash GLOBAL.
         response = requests.put('/'.join([self.controllerRoot, 'proxies', 'GLOBAL']), json.dumps({
             'name': bestProxy
-        }, ensure_ascii=False).encode('utf8'), headers={'Content-Type': 'application/json'})
+        }, ensure_ascii=False).encode('utf8'), headers=self.clashHeader | {'Content-Type': 'application/json'})
         if response.ok:
             logging.debug('Changed GLOBAL to the best tested proxy: [%s].', bestProxy)
             # make sure clash have been in the mode GLOBAL
@@ -169,40 +200,8 @@ def tryGetEnvVar(name, default=None, strict=False):
     return var
 
 
-def catch_exceptions(cancel_on_failure=False):
-    def catch_exceptions_decorator(job_func):
-        @functools.wraps(job_func)
-        def wrapper(*args, **kwargs):
-            try:
-                return job_func(*args, **kwargs)
-            except:
-                import traceback
-                logging.error(traceback.format_exc())
-                if cancel_on_failure:
-                    return schedule.CancelJob
-        return wrapper
-    return catch_exceptions_decorator
+async def main():
 
-
-def updateConfig(updater: Updater, interval: int):
-    try:
-        updater.updateConfig()
-        # After update config, do a proxy selec
-        updater.selectBest()
-        logging.info('Update config complete. Next scheduled task starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=interval))
-    except:
-        logging.error('Update config failed. Skip for this time.')
-        raise
-
-def checkProxy(updater: Updater, interval: int):
-    try:
-        updater.selectBest()
-        logging.info('Select best proxy complete. Next scheduled task starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=interval))
-    except:
-        logging.error('Select best proxy failed. Skip for this time.')
-        raise
-
-if __name__ == '__main__':
     level = logging.INFO if int(os.environ.get('VERBOSE', '0')) < 1 else logging.DEBUG
 
     logging.basicConfig(level=level, format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', stream=sys.stdout, filemode='w')
@@ -211,19 +210,62 @@ if __name__ == '__main__':
     clashConfigPath = tryGetEnvVar('CLASH_CONFIG_PATH', strict=True)
     containerConfigPath = tryGetEnvVar('SELF_CONFIG_PATH', strict=True)
     managedConfigUrl = tryGetEnvVar('MANAGED_CONFIG_URL', strict=True)
+    clashSecret = tryGetEnvVar('CLASH_SECRET', strict=True)
 
-    proxyCheckInterval = int(tryGetEnvVar('PROXY_CHECK_INTERVAL', strict=True))
-    configUpdateInterval = int(tryGetEnvVar('CONFIG_UPDATE_INTERVAL', strict=True))
-
-    updater = Updater(controllerRoot, managedConfigUrl, clashConfigPath, containerConfigPath)
+    updater = Updater(controllerRoot, clashSecret, managedConfigUrl, clashConfigPath, containerConfigPath)
 
     logging.info('Sucessfully created updater.')
 
-    logging.info('Next scheduled task for config update starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=configUpdateInterval))
-    logging.info('Next scheduled task for proxy select starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=proxyCheckInterval))
-    schedule.every(proxyCheckInterval).seconds.do(checkProxy, updater, proxyCheckInterval)
-    schedule.every(configUpdateInterval).seconds.do(updateConfig, updater, configUpdateInterval)
 
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+
+    @app_rocketry.task('every 72 hours')
+    async def updateConfig():
+        try:
+            updater.updateConfig()
+            # After update config, do a proxy selec
+            updater.selectBest()
+            logging.info('Update config complete. Next scheduled task starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=72*3600))
+        except:
+            logging.error('Update config failed. Skip for this time.')
+            raise
+
+    @app_rocketry.task('every 8 hours')
+    async def checkProxy():
+        try:
+            updater.selectBest()
+            logging.info('Select best proxy complete. Next scheduled task starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=8*3600))
+        except:
+            logging.error('Select best proxy failed. Skip for this time.')
+            raise
+
+
+    @app_fastapi.get('/update-config')
+    async def rest_update_config(background_tasks: fastapi.BackgroundTasks):
+        def func():
+            updater.updateConfig()
+            # After update config, do a proxy selec
+            updater.selectBest()
+            logging.info('Update config complete.')
+        background_tasks.add_task(func)
+        return {'message': 'called update_config().'}
+
+    @app_fastapi.get('/check-proxy')
+    async def rest_checkProxy(background_tasks: fastapi.BackgroundTasks):
+        def func():
+            updater.selectBest()
+            logging.info('Select best proxy complete.')
+        background_tasks.add_task(func)
+        return {'message': 'called rest_checkProxy().'}
+
+
+    "Run scheduler and the API"
+    server = Server(config=uvicorn.Config(app_fastapi, workers=1, loop="asyncio"))
+
+    api = asyncio.create_task(server.serve())
+    sched = asyncio.create_task(app_rocketry.serve())
+
+    await asyncio.wait([sched, api])
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

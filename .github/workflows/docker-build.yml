@@ -36,7 +36,7 @@ jobs:
         uses: mr-smithers-excellent/docker-build-push@v6
         with:
           registry: docker.io
-          directory: ./docker
+          directory: docker/
           image: zhongbazhu/nas_auto_update_clash
           tags: latest
           username: ${{ secrets.DOCKER_USERNAME }}

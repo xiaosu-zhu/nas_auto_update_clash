@@ -33,9 +33,10 @@ jobs:
           echo "::set-output name=check-result::$(python check_today_has_commit.py)"
       - name: Build and push Docker image
         if: ${{ steps.check-commit.outputs.check-result == 'true' }}
-        uses: docker/build-push-action@v6
+        uses: mr-smithers-excellent/docker-build-push@v6
         with:
-          context: ./docker
+          registry: docker.io
+          directory: ./docker
           image: zhongbazhu/nas_auto_update_clash
           tags: latest
           username: ${{ secrets.DOCKER_USERNAME }}

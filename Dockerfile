@@ -1,28 +1,8 @@
-FROM continuumio/miniconda3:23.5.2-0
+FROM python:3.12
 
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
 
-SHELL ["/bin/bash", "-c"]
-
-RUN echo $'channels: \n\
-  - defaults \n\
-show_channel_urls: true \n\
-default_channels: \n\
-  - http://mirrors.aliyun.com/anaconda/pkgs/main \n\
-  - http://mirrors.aliyun.com/anaconda/pkgs/r \n\
-  - http://mirrors.aliyun.com/anaconda/pkgs/msys2 \n\
-custom_channels: \n\
-  conda-forge: http://mirrors.aliyun.com/anaconda/cloud \n\
-  msys2: http://mirrors.aliyun.com/anaconda/cloud \n\
-  bioconda: http://mirrors.aliyun.com/anaconda/cloud \n\
-  menpo: http://mirrors.aliyun.com/anaconda/cloud \n\
-  pytorch: http://mirrors.aliyun.com/anaconda/cloud \n\
-  simpletk: http://mirrors.aliyun.com/anaconda/cloud '  > ~/.condarc
-
-
-# fastapi and rocketry need newer python
-RUN conda install "python>=3.12"
-RUN conda install requests joblib schedule pyyaml rocketry fastapi uvicorn-standard -c conda-forge
+RUN pip install requests joblib schedule pyyaml rocketry fastapi "uvicorn[standard]"
 
 
 VOLUME ["/root/config"]

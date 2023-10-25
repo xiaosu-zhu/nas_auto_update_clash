@@ -9,12 +9,8 @@ import shutil
 import pathlib
 import os
 import datetime
-from joblib import Parallel, delayed
 import json
 import sys
-import time
-import schedule
-import functools
 import fastapi
 import asyncio
 import uvicorn
@@ -150,7 +146,7 @@ class Updater:
 
             return proxyName, totalLatency
 
-        results = Parallel(-1)(delayed(singleDelay)(name) for name in proxies.keys())
+        results = [singleDelay(name) for name in proxies.keys()]
 
         if results is None:
             raise RuntimeError("Run joblib to query latencies meet error.")
@@ -223,8 +219,6 @@ async def main():
     async def updateConfig():
         try:
             updater.updateConfig()
-            # After update config, do a proxy selec
-            updater.selectBest()
             logging.info('Update config complete. Next scheduled task starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=72*3600))
         except:
             logging.error('Update config failed. Skip for this time.')
@@ -244,8 +238,6 @@ async def main():
     async def rest_update_config(background_tasks: fastapi.BackgroundTasks):
         def func():
             updater.updateConfig()
-            # After update config, do a proxy selec
-            updater.selectBest()
             logging.info('Update config complete.')
         background_tasks.add_task(func)
         return {'message': 'called update_config().'}

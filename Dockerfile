@@ -19,6 +19,9 @@ custom_channels: \n\
   pytorch: http://mirrors.aliyun.com/anaconda/cloud \n\
   simpletk: http://mirrors.aliyun.com/anaconda/cloud '  > ~/.condarc
 
+
+# fastapi and rocketry need newer python
+RUN conda update "python>=3.12"
 RUN conda install requests joblib schedule pyyaml rocketry fastapi uvicorn-standard -c conda-forge
 
 

@@ -21,7 +21,7 @@ custom_channels: \n\
 
 
 # fastapi and rocketry need newer python
-RUN conda update "python>=3.12"
+RUN conda install "python>=3.12"
 RUN conda install requests joblib schedule pyyaml rocketry fastapi uvicorn-standard -c conda-forge
 
 

@@ -2,7 +2,7 @@ FROM python:3.12
 
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
 
-RUN pip install requests joblib schedule pyyaml rocketry fastapi "uvicorn[standard]"
+RUN pip install requests joblib schedule pyyaml rocketry fastapi "uvicorn[standard]" "pydantic<2"
 
 
 VOLUME ["/root/config"]

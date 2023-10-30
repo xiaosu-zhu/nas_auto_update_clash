@@ -89,7 +89,7 @@ class Updater:
     def modifyConfig(self, configStr: str) -> str:
         config = yaml.safe_load(configStr)
         config['external-controller'] = '127.0.0.1:9090'
-        config['secret'] = self.clashSecret
+        # config['secret'] = self.clashSecret
         config['allow-lan'] = True
         return yaml.safe_dump(config)
 

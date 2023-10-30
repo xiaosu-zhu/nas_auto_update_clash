@@ -56,20 +56,22 @@ class Updater:
 
     def __init__(self, controllerRoot, clashSecret, managedConfigUrl, clashContainerConfigPath, thisContainerConfigPath):
         logging.debug('Start Updater.__init__()')
-        response = requests.get(controllerRoot)
-        if not response.ok:
-            raise ConnectionError('The give clash controller root return wrong status. GET %s: <%s> (%s)' % (controllerRoot, response.status_code, response.reason))
-
-        if not os.path.exists(thisContainerConfigPath) and not os.path.isfile(thisContainerConfigPath):
-            raise FileNotFoundError('The give clash config not found IN THIS RUNNING CONTAINER (not that clash container). Please check volum mount config. path: %s' % thisContainerConfigPath)
-
         self.controllerRoot = controllerRoot
         self.clashContainerConfigPath = clashContainerConfigPath
         self.thisContainerConfigPath = thisContainerConfigPath
         self.managedConfigUrl = managedConfigUrl
         self.clashSecret = clashSecret
 
-        self.clashHeader = DEFAULT_HEADER | { 'Authorization': f'Bearer {self.clashSecret}' }
+        self.clashHeader = DEFAULT_HEADER | { 'Authorization': f'Bearer {self.clashSecret}' } | {'Content-Type': 'application/json'}
+
+
+        response = requests.get(controllerRoot, headers=self.clashHeader)
+        if not response.ok:
+            raise ConnectionError('The give clash controller root return wrong status. GET %s: <%s> (%s)' % (controllerRoot, response.status_code, response.reason))
+
+        if not os.path.exists(thisContainerConfigPath) and not os.path.isfile(thisContainerConfigPath):
+            raise FileNotFoundError('The give clash config not found IN THIS RUNNING CONTAINER (not that clash container). Please check volum mount config. path: %s' % thisContainerConfigPath)
+
 
         self.downloadConfig()
         logging.debug('*DONE* Updater.__init__()')
@@ -89,7 +91,7 @@ class Updater:
     def modifyConfig(self, configStr: str) -> str:
         config = yaml.safe_load(configStr)
         config['external-controller'] = '127.0.0.1:9090'
-        # config['secret'] = self.clashSecret
+        config['secret'] = self.clashSecret
         config['allow-lan'] = True
         return yaml.safe_dump(config)
 
@@ -103,7 +105,7 @@ class Updater:
 
         response = requests.put('/'.join([self.controllerRoot, 'configs']) + '?force=true', json.dumps({
             'path': self.clashContainerConfigPath
-        }, ensure_ascii=False).encode('utf-8'), headers=self.clashHeader | {'Content-Type': 'application/json'})
+        }, ensure_ascii=False).encode('utf-8'), headers=self.clashHeader)
         if response.ok:
             logging.info('Update config at %s.', datetime.datetime.now())
             logging.debug('*DONE* Updater.updateConfig()')
@@ -162,7 +164,7 @@ class Updater:
 
         response = requests.patch('/'.join([self.controllerRoot, 'configs']), json.dumps({
             'mode': mode
-        }, ensure_ascii=False).encode('utf8'), headers=self.clashHeader | {'Content-Type': 'application/json'})
+        }, ensure_ascii=False).encode('utf8'), headers=self.clashHeader)
         response = requests.get('/'.join([self.controllerRoot, 'configs']), headers=self.clashHeader)
         if response.ok and response.json()['mode'].lower() == mode.lower():
             logging.debug('Change mode to %s ok.', mode)
@@ -178,7 +180,7 @@ class Updater:
         # since the test-passed proxies have access to all target url, force to use clash GLOBAL.
         response = requests.put('/'.join([self.controllerRoot, 'proxies', 'GLOBAL']), json.dumps({
             'name': bestProxy
-        }, ensure_ascii=False).encode('utf8'), headers=self.clashHeader | {'Content-Type': 'application/json'})
+        }, ensure_ascii=False).encode('utf8'), headers=self.clashHeader)
         if response.ok:
             logging.debug('Changed GLOBAL to the best tested proxy: [%s].', bestProxy)
             # make sure clash have been in the mode GLOBAL

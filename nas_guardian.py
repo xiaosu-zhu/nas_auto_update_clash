@@ -15,6 +15,7 @@ import fastapi
 import asyncio
 import uvicorn
 from rocketry import Rocketry
+import tempfile
 
 sched_logger = logging.getLogger("rocketry.scheduler")
 sched_logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -97,11 +98,18 @@ class Updater:
 
     def updateConfig(self):
         logging.debug('Start Updater.updateConfig()')
+        temp_dir = tempfile.gettempdir()
 
+        try:
+            with open(pathlib.Path(temp_dir) / pathlib.Path(self.thisContainerConfigPath).name, "w") as fp:
+                fp.write(self.modifyConfig(self.downloadConfig()))
+        except:
+            logging.info('Download and modify config failed.', datetime.datetime.now())
+            raise
 
-        shutil.copy(self.thisContainerConfigPath, pathlib.Path(self.thisContainerConfigPath).parent / "backup_config.yaml")
-        with open(self.thisContainerConfigPath, "w") as fp:
-            fp.write(self.modifyConfig(self.downloadConfig()))
+        shutil.move(self.thisContainerConfigPath, pathlib.Path(self.thisContainerConfigPath).parent / "backup_config.yaml")
+
+        shutil.copy(pathlib.Path(temp_dir) / pathlib.Path(self.thisContainerConfigPath).name, self.thisContainerConfigPath)
 
         response = requests.put('/'.join([self.controllerRoot, 'configs']) + '?force=true', json.dumps({
             'path': self.clashContainerConfigPath
@@ -218,7 +226,7 @@ async def main():
 
 
     @app_rocketry.task('every 72 hours')
-    async def updateConfig():
+    async def _updateConfig():
         try:
             updater.updateConfig()
             logging.info('Update config complete. Next scheduled task starts at %s', datetime.datetime.now() + datetime.timedelta(seconds=72*3600))

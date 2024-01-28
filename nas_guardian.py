@@ -82,7 +82,9 @@ class Updater:
         logging.debug('Start Updater.downloadConfig()')
         newConfig = requests.get(self.managedConfigUrl, headers=DEFAULT_HEADER).text
         try:
-            yaml.safe_load(newConfig)
+            loadedConfig = yaml.safe_load(newConfig)
+            if not 'proxies' in loadedConfig:
+                raise ValueError('The download config is invalid\r\n[RAW CONFIG] \r\n%s' % loadedConfig)
         except:
             logging.error("The given managed config url returns an invalid yaml. (%s)" % self.managedConfigUrl)
             raise
